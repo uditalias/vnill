@@ -1,12 +1,21 @@
-import { cloneDeep, shallowEqual } from 'common/utils'
-import Dispatcher from 'common/EventDispatcher'
+import { cloneDeep, shallowEqual } from '../common/utils'
+import Dispatcher from '../common/EventDispatcher'
 
-export default class Component<Props> extends Dispatcher implements Component<Props> {
+export interface IDictionary<TValue> {
+    [id: string]: TValue;
+}
 
-    protected props: Props;
+export interface Cords {
+    top: number
+    left: number
+}
+
+export class Component<Props> extends Dispatcher implements Component<Props> {
+
     protected $el: HTMLElement;
     protected children: Component<any>[];
     protected refs: IDictionary<Component<any>>;
+    protected props: Props;
 
     private _watchers: IDictionary<Function>;
     private _hasWatchers: boolean;
@@ -14,14 +23,15 @@ export default class Component<Props> extends Dispatcher implements Component<Pr
 
     constructor(props: Props = ({} as Props), element?: HTMLElement) {
         super();
+
         this.$el = element || null;
-        this.refs = {};
         this.children = [];
+        this.refs = {};
+        this.props = props;
+
         this._watchers = {};
         this._hasWatchers = false;
         this._raf = null;
-
-        this.props = props;
     }
 
     public componentWillMount() {

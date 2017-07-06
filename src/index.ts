@@ -1,1 +1,1 @@
-export {default as Component} from 'core/Component'
+export { Component } from './core/Component'

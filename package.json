@@ -1,17 +1,16 @@
 {
   "name": "vnill",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "The closest to vanilla",
-  "main": "dist/vnill.js",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "scripts": {
-    "dev": "NODE_ENV=development webpack --config webpack/dev/webpack.config.dev.js --watch --progress",
-    "build": "NODE_ENV=production webpack --config webpack/prod/webpack.config.prod.js -p --progress"
+    "build": "rm -rf dist && tsc"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/uditalias/vnill.git"
   },
-  "typings": "index.d.ts",
   "private": false,
   "author": "Udi Talias <udi.talias@gmail.com>",
   "license": "MIT",
@@ -20,12 +19,7 @@
   },
   "homepage": "https://github.com/uditalias/vnill#readme",
   "devDependencies": {
-    "@types/webpack-env": "^1.13.0",
-    "extract-text-webpack-plugin": "^2.1.2",
-    "html-loader": "^0.4.5",
-    "ts-loader": "^2.2.0",
     "tslib": "^1.7.1",
-    "typescript": "^2.3.4",
-    "webpack": "^3.0.0"
+    "typescript": "^2.3.4"
   }
 }
