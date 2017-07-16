@@ -12,7 +12,7 @@ export interface Cords {
 
 export class Component<Props> extends Dispatcher {
 
-    protected $el: HTMLElement;
+    protected $el: Element | HTMLElement;
     protected children: Component<any>[];
     protected refs: IDictionary<Component<any>>;
     protected props: Props;
@@ -21,7 +21,7 @@ export class Component<Props> extends Dispatcher {
     private _hasWatchers: boolean;
     private _raf: number;
 
-    constructor(props: Props = ({} as Props), element?: HTMLElement) {
+    constructor(props: Props = ({} as Props), element?: Element | HTMLElement) {
         super();
 
         this.$el = element || null;
@@ -55,7 +55,7 @@ export class Component<Props> extends Dispatcher {
     }
 
     public shouldComponentUpdate(nextProps: Props) {
-        return shallowEqual(this.props, nextProps);
+        return !shallowEqual(cloneDeep(this.props), nextProps);
     }
 
     public getProps(): Props {
@@ -70,7 +70,7 @@ export class Component<Props> extends Dispatcher {
 
         this.componentWillUpdate(nextProps);
 
-        let clonedPrevProps = cloneDeep(this.props);
+        let clonedPrevProps = { ...(<any>this.props) };
 
         this.props = { ...(<any>clonedPrevProps), ...(<any>nextProps) } as Props;
 
@@ -95,7 +95,7 @@ export class Component<Props> extends Dispatcher {
         return this;
     }
 
-    public toChildView(element: HTMLElement | string, ref?: string) {
+    public toChildView(element: Element | HTMLElement | string, ref?: string) {
         if (typeof element === 'string') {
             element = this.querySelector(element);
         }
@@ -141,7 +141,7 @@ export class Component<Props> extends Dispatcher {
         return this;
     }
 
-    public getDOMNode(): HTMLElement {
+    public getDOMNode(): Element | HTMLElement {
         return this.$el;
     }
 
@@ -175,6 +175,10 @@ export class Component<Props> extends Dispatcher {
         return this.$el.classList.contains(className);
     }
 
+    public setClasses(classes: string) {
+        this.setAttribute('class', classes);
+    }
+
     public setAttribute(key: string, value: string | number | boolean) {
         this.$el.setAttribute(key, value.toString());
         return this;
@@ -190,21 +194,21 @@ export class Component<Props> extends Dispatcher {
     }
 
     public setStyle(key: string, value: string | number) {
-        this.$el.style[key] = value.toString();
+        (<HTMLElement>this.$el).style[key] = value.toString();
         return this;
     }
 
     public unsetStyle(key: string) {
-        this.$el.style[key] = '';
+        (<HTMLElement>this.$el).style[key] = '';
         return this;
     }
 
-    public appendTo(view: HTMLElement) {
+    public appendTo(view: Element | HTMLElement) {
         view.appendChild(this.$el);
         return this;
     }
 
-    public prependTo(view: HTMLElement) {
+    public prependTo(view: Element | HTMLElement) {
         if (view.childNodes.length == 0) {
             return this.appendTo(view);
         } else {

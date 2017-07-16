@@ -1,6 +1,6 @@
 {
   "name": "vnill",
-  "version": "1.0.8",
+  "version": "1.0.17",
   "description": "The closest to vanilla",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
