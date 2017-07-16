@@ -10,7 +10,7 @@ export interface Cords {
     left: number
 }
 
-export class Component<Props> extends Dispatcher implements Component<Props> {
+export class Component<Props> extends Dispatcher {
 
     protected $el: HTMLElement;
     protected children: Component<any>[];
@@ -58,6 +58,10 @@ export class Component<Props> extends Dispatcher implements Component<Props> {
         return shallowEqual(this.props, nextProps);
     }
 
+    public getProps(): Props {
+        return this.props;
+    }
+
     public updateProps(nextProps: Props) {
 
         if (this.shouldComponentUpdate(nextProps) === false) {
@@ -96,12 +100,17 @@ export class Component<Props> extends Dispatcher implements Component<Props> {
             element = this.querySelector(element);
         }
 
-        let view = new Component<any>({}, element);
-        this.children.push(view);
+        return this.appendChildView(new Component<any>({}, element), ref);
+    }
+
+    public appendChildView(childView: Component<any>, ref?: string) {
+        this.children.push(childView);
+
         if (ref) {
-            this.refs[ref] = view;
+            this.refs[ref] = childView;
         }
-        return view;
+
+        return childView;
     }
 
     protected addWatcher(propName: string, fn: (newProp: any, oldProp: any) => {}) {
@@ -268,5 +277,7 @@ export class Component<Props> extends Dispatcher implements Component<Props> {
         this.$el = null;
 
         this.children.length = 0;
+
+        this.dispatch('disposed', this);
     }
 }

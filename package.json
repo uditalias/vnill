@@ -1,10 +1,11 @@
 {
   "name": "vnill",
-  "version": "1.0.2",
+  "version": "1.0.8",
   "description": "The closest to vanilla",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
+    "dev": "rm -rf build && tsc --watch --outdir build",
     "build": "rm -rf dist && tsc"
   },
   "repository": {
@@ -19,7 +20,11 @@
   },
   "homepage": "https://github.com/uditalias/vnill#readme",
   "devDependencies": {
+    "redux": "^3.7.1",
     "tslib": "^1.7.1",
     "typescript": "^2.3.4"
+  },
+  "peerDependencies": {
+    "redux": "^2.0.0 || ^3.0.0"
   }
 }
