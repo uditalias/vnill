@@ -5,4 +5,5 @@ node_modules
 build
 dist
 *.log
-public/bundle.js
+example/public/bundle.js
+example/public/bundle.map.js

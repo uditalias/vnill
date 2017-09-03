@@ -74,11 +74,11 @@ export class Router {
         return this._states.find(x => x.isRouteFulfill(urlOrName));
     }
 
-    private _manageState(state: State) {
+    private async _manageState(state: State) {
 
         if (this._currentState) {
             if (state.parent !== this._currentState.name) {
-                this._currentState.deactivate();
+                await this._currentState.deactivate();
             } else {
                 this._currentParentState = this._currentState;
             }
@@ -93,7 +93,7 @@ export class Router {
                 this._currentParentState = parentState;
             }
         } else if (this._currentParentState && this._currentParentState.name !== state.parent) {
-            this._currentParentState.deactivate();
+            await this._currentParentState.deactivate();
             this._currentParentState = null;
         }
 

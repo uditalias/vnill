@@ -13,11 +13,12 @@ export class State {
     public parent: any;
 
     private _domContext: HTMLElement;
-    private _stateController: any;
-    private _viewsControllers: any;
+    private _stateController: Controller;
+    private _viewsControllers: Controller[];
     private _data: any;
     private _pathRegx: RegExp;
     private _pathKeys: pathToRegexp.Key[];
+    private _isActive: boolean;
 
     constructor(settings) {
         this.name = settings.name
@@ -28,6 +29,8 @@ export class State {
         this.onExit = settings.onExit;
         this.views = settings.views;
         this.parent = null;
+
+        this._isActive = false;
 
         this._pathKeys = [];
         this._pathRegx = pathToRegexp(this.url, this._pathKeys);
@@ -68,6 +71,14 @@ export class State {
         this._data = data;
     }
 
+    public getData() {
+        return this._data;
+    }
+
+    public isActive() {
+        return this._isActive;
+    }
+
     public getController(): Controller {
         return this._stateController;
     }
@@ -76,6 +87,8 @@ export class State {
         if (this.onEnter) {
             this.onEnter(this);
         }
+
+        this._isActive = true;
 
         let domContext;
 
@@ -105,15 +118,28 @@ export class State {
             this.onExit(this);
         }
 
+        this._isActive = false;
+
         if (this._stateController) {
             this._stateController.destroy();
             this._stateController = null;
         }
 
+        if (this._viewsControllers.length) {
+            for (let i = 0, len = this._viewsControllers.length; i < len; i++) {
+                this._viewsControllers[i].destroy();
+                this._viewsControllers[i] = null;
+            }
+
+            this._viewsControllers.length = 0;
+        }
+
         this._data = null;
 
-        this._domContext.parentElement.removeChild(this._domContext);
-        this._domContext = null;
+        if (this._domContext) {
+            this._domContext.parentElement.removeChild(this._domContext);
+            this._domContext = null;
+        }
     }
 
     private _createController() {
@@ -137,7 +163,7 @@ export class State {
 
             viewName = view.name || viewName;
 
-            let container = document.querySelector(`[data-view="${viewName}"]`);
+            let container = this._domContext.querySelector(`[data-view="${viewName}"]`);
 
             if (container) {
                 let div = document.createElement('div');
@@ -145,15 +171,16 @@ export class State {
 
                 container.parentElement.replaceChild(div.firstChild, container);
                 div = null;
+
+                let ViewController = view.controller;
+
+                if (ViewController) {
+                    let scope = scopeFactory.create();
+
+                    this._viewsControllers.push(new ViewController(scope, this._data, container));
+                }
             }
 
-            let ViewController = view.controller;
-
-            if (ViewController) {
-                let scope = scopeFactory.create();
-
-                this._viewsControllers.push(new ViewController(scope, this._data, container));
-            }
         });
     }
 
