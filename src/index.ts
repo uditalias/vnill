@@ -1,2 +1,3 @@
-export { Component } from './core/Component'
-export { Provider } from './core/Provider'
+export { Router } from './core/Router'
+export { State } from './core/State'
+export { Controller } from './core/Controller'

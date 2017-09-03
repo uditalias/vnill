@@ -42,7 +42,7 @@ export default class EventDispatcher {
         return this;
     }
 
-    protected dispatch(name: string, ...args: any[]): void {
+    public dispatch(name: string, ...args: any[]): void {
 
         if (this._eventDispatcherCallbacks) {
             let callbacks = this._eventDispatcherCallbacks[name];

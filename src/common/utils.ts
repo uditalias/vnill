@@ -26,3 +26,11 @@ export const shallowEqual = (a: any, b: any) => {
 
     return countA === countB;
 };
+
+export const trimEndSlash = (str: string): string => {
+    if (str.lastIndexOf('/') == str.length - 1) {
+        return str.substr(0, str.length - 1);
+    }
+
+    return str;
+};
