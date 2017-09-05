@@ -10,9 +10,11 @@ export class Scope extends EventDispatcher {
     }
 }
 
-function createScope() {
+function createScope(data) {
 
     let scope = new Scope();
+
+    Object.assign(scope, data);
 
     return new Proxy<Scope>(scope, {
         get: function (target, key) {
@@ -39,5 +41,5 @@ function createScope() {
 }
 
 export default {
-    create: () => createScope()
+    create: (data) => createScope(data)
 }

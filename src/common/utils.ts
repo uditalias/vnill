@@ -28,9 +28,23 @@ export const shallowEqual = (a: any, b: any) => {
 };
 
 export const trimEndSlash = (str: string): string => {
-    if (str.lastIndexOf('/') == str.length - 1) {
-        return str.substr(0, str.length - 1);
+    if (!str) {
+        return str;
+    }
+
+    let len = str.length;
+
+    if (str[len - 1] === "/") {
+        return str.substr(0, len - 1);
     }
 
     return str;
 };
+
+export const values = (obj: any): any[] => {
+    if (!obj) {
+        return [];
+    }
+
+    return Object.keys(obj).map(key => obj[key]);
+}

@@ -1,16 +1,43 @@
+import { IStateView } from './State';
 import * as pathToRegexp from 'path-to-regexp'
-import { Controller } from './Controller'
+import { Controller, IControllerConstructor } from './Controller'
 import scopeFactory from './scopeFactory'
+
+export interface IStateView {
+    name: string
+    controller: IControllerConstructor
+    template: string
+    resolve: {
+        [name: string]: (State) => any
+    }
+}
+
+export interface IStateSettings {
+    name: string
+    url: string
+    controller: IControllerConstructor
+    template: string
+    onEnter: Function
+    onExit: Function
+    views: {
+        [name: string]: IStateView
+    }
+    resolve: {
+        [name: string]: (State) => any
+    }
+}
 
 export class State {
     public name: string;
     public url: string;
-    public controller: any;
+    public controller: IControllerConstructor;
     public template: string;
     public onEnter: Function;
     public onExit: Function;
-    public views: any;
-    public parent: any;
+    public views: { [name: string]: IStateView };
+    public resolve: { [name: string]: (State) => any };
+    public parentStateName: string;
+    public parentState: State;
 
     private _domContext: HTMLElement;
     private _stateController: Controller;
@@ -20,7 +47,7 @@ export class State {
     private _pathKeys: pathToRegexp.Key[];
     private _isActive: boolean;
 
-    constructor(settings) {
+    constructor(settings: IStateSettings) {
         this.name = settings.name
         this.url = settings.url;
         this.controller = settings.controller;
@@ -28,7 +55,9 @@ export class State {
         this.onEnter = settings.onEnter;
         this.onExit = settings.onExit;
         this.views = settings.views;
-        this.parent = null;
+        this.resolve = settings.resolve;
+        this.parentStateName = null;
+        this.parentState = null;
 
         this._isActive = false;
 
@@ -42,7 +71,7 @@ export class State {
 
         this._data = null;
 
-        this._setParent();
+        this._setParentStateName();
     }
 
     public isRouteFulfill(path: string) {
@@ -83,28 +112,28 @@ export class State {
         return this._stateController;
     }
 
-    public activate(context?: State) {
+    public async activate(context?: State) {
         if (this.onEnter) {
             this.onEnter(this);
         }
 
         this._isActive = true;
 
-        let domContext;
+        let domContext: Document | HTMLElement = document;
 
         if (context) {
+            this._setParentState(context);
+
             domContext = context.getDOMContext();
-        } else {
-            domContext = document;
         }
 
-        let parent = domContext.querySelector('[data-view]');
+        let placeholder = domContext.querySelector('[data-view]');
 
-        parent.innerHTML = this.template;
+        placeholder.innerHTML = this.template;
 
-        this._domContext = parent.firstChild;
+        this._domContext = <HTMLElement>placeholder.firstChild;
 
-        this._createController();
+        this._stateController = await this._createController(this.controller, this.resolve);
 
         this._renderViews();
     }
@@ -117,6 +146,8 @@ export class State {
         if (this.onExit) {
             this.onExit(this);
         }
+
+        this._setParentState(null);
 
         this._isActive = false;
 
@@ -142,14 +173,40 @@ export class State {
         }
     }
 
-    private _createController() {
-        let StateController = this.controller;
+    private async _getResolvedData(resolvers: any): Promise<any> {
+        if (!resolvers) {
+            return;
+        }
 
-        if (StateController) {
+        let resolversValues = [];
+        let keys = Object.keys(resolvers);
+        let data: any = {};
 
-            let scope = scopeFactory.create();
+        keys.forEach(name => {
+            let resolver = resolvers[name];
 
-            this._stateController = new StateController(scope, this._data, this._domContext);
+            if (typeof resolver === 'function') {
+                resolversValues.push(resolvers[name](this));
+            } else {
+                resolversValues.push(resolvers[name]);
+            }
+        });
+
+        let resolved = await Promise.all(resolversValues);
+
+        keys.forEach((key, i) => data[key] = resolved[i]);
+
+        return data;
+    }
+
+    private async _createController(ControllerConstructor: IControllerConstructor, resolve: any = {}) {
+        if (ControllerConstructor) {
+
+            let resolvedData = await this._getResolvedData(resolve);
+
+            let scope = scopeFactory.create(resolvedData);
+
+            return new ControllerConstructor(scope, this._data, this._domContext);
         }
     }
 
@@ -158,37 +215,42 @@ export class State {
             return;
         }
 
-        Object.keys(this.views).forEach(viewName => {
-            let view = this.views[viewName];
-
-            viewName = view.name || viewName;
-
-            let container = this._domContext.querySelector(`[data-view="${viewName}"]`);
-
-            if (container) {
-                let div = document.createElement('div');
-                div.innerHTML = view.template;
-
-                container.parentElement.replaceChild(div.firstChild, container);
-                div = null;
-
-                let ViewController = view.controller;
-
-                if (ViewController) {
-                    let scope = scopeFactory.create();
-
-                    this._viewsControllers.push(new ViewController(scope, this._data, container));
-                }
-            }
-
-        });
+        return Promise.all(
+            Object.keys(this.views).map(viewName => this._renderView(viewName))
+        );
     }
 
-    private _setParent() {
+    private async _renderView(viewName: string) {
+        let view = <IStateView>this.views[viewName];
+
+        viewName = view.name || viewName;
+
+        let container = this._domContext.querySelector(`[data-view="${viewName}"]`);
+
+        if (container) {
+            let placeholder = document.createElement('div');
+            placeholder.innerHTML = view.template;
+
+            container.parentElement.replaceChild(placeholder.firstChild, container);
+            placeholder = null;
+
+            let ViewController = view.controller;
+
+            if (ViewController) {
+                this._viewsControllers.push(await this._createController(ViewController, view.resolve));
+            }
+        }
+    }
+
+    private _setParentStateName() {
         let stateParts = this.name.split('.');
 
         if (stateParts.length > 1) {
-            this.parent = stateParts[0];
+            this.parentStateName = stateParts[0];
         }
+    }
+
+    private _setParentState(state: State) {
+        this.parentState = state;
     }
 }

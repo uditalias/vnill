@@ -5,6 +5,9 @@ export default {
     name: 'profile',
     url: '/profile',
     controller: ProfileController,
+    // template: function (state, domContext) {
+    //     domContext.innerHTML = require('./profile.html');
+    // },
     template: require('./profile.html'),
     views: {
         user_info: {

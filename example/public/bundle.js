@@ -60,7 +60,7 @@
 /******/ 	__webpack_require__.p = "";
 /******/
 /******/ 	// Load entry module and return exports
-/******/ 	return __webpack_require__(__webpack_require__.s = 1);
+/******/ 	return __webpack_require__(__webpack_require__.s = 2);
 /******/ })
 /************************************************************************/
 /******/ ([
@@ -70,8 +70,24 @@
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
+var Router_1 = __webpack_require__(3);
+exports.Router = Router_1.Router;
+var State_1 = __webpack_require__(1);
+exports.State = State_1.State;
+var Controller_1 = __webpack_require__(8);
+exports.Controller = Controller_1.Controller;
+
+
+/***/ }),
+/* 1 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+const tslib_1 = __webpack_require__(21);
 const pathToRegexp = __webpack_require__(4);
-const scopeFactory_1 = __webpack_require__(19);
+const scopeFactory_1 = __webpack_require__(5);
 class State {
     constructor(settings) {
         this.name = settings.name;
@@ -81,7 +97,9 @@ class State {
         this.onEnter = settings.onEnter;
         this.onExit = settings.onExit;
         this.views = settings.views;
-        this.parent = null;
+        this.resolve = settings.resolve;
+        this.parentStateName = null;
+        this.parentState = null;
         this._isActive = false;
         this._pathKeys = [];
         this._pathRegx = pathToRegexp(this.url, this._pathKeys);
@@ -89,7 +107,7 @@ class State {
         this._stateController = null;
         this._viewsControllers = [];
         this._data = null;
-        this._setParent();
+        this._setParentStateName();
     }
     isRouteFulfill(path) {
         return !!this._pathRegx.exec(path);
@@ -121,22 +139,22 @@ class State {
         return this._stateController;
     }
     activate(context) {
-        if (this.onEnter) {
-            this.onEnter(this);
-        }
-        this._isActive = true;
-        let domContext;
-        if (context) {
-            domContext = context.getDOMContext();
-        }
-        else {
-            domContext = document;
-        }
-        let parent = domContext.querySelector('[data-view]');
-        parent.innerHTML = this.template;
-        this._domContext = parent.firstChild;
-        this._createController();
-        this._renderViews();
+        return tslib_1.__awaiter(this, void 0, void 0, function* () {
+            if (this.onEnter) {
+                this.onEnter(this);
+            }
+            this._isActive = true;
+            let domContext = document;
+            if (context) {
+                this._setParentState(context);
+                domContext = context.getDOMContext();
+            }
+            let placeholder = domContext.querySelector('[data-view]');
+            placeholder.innerHTML = this.template;
+            this._domContext = placeholder.firstChild;
+            this._stateController = yield this._createController(this.controller, this.resolve);
+            this._renderViews();
+        });
     }
     getDOMContext() {
         return this._domContext;
@@ -145,6 +163,7 @@ class State {
         if (this.onExit) {
             this.onExit(this);
         }
+        this._setParentState(null);
         this._isActive = false;
         if (this._stateController) {
             this._stateController.destroy();
@@ -163,51 +182,80 @@ class State {
             this._domContext = null;
         }
     }
-    _createController() {
-        let StateController = this.controller;
-        if (StateController) {
-            let scope = scopeFactory_1.default.create();
-            this._stateController = new StateController(scope, this._data, this._domContext);
-        }
+    _getResolvedData(resolvers) {
+        return tslib_1.__awaiter(this, void 0, void 0, function* () {
+            if (!resolvers) {
+                return;
+            }
+            let resolversValues = [];
+            let keys = Object.keys(resolvers);
+            let data = {};
+            keys.forEach(name => {
+                let resolver = resolvers[name];
+                if (typeof resolver === 'function') {
+                    resolversValues.push(resolvers[name](this));
+                }
+                else {
+                    resolversValues.push(resolvers[name]);
+                }
+            });
+            let resolved = yield Promise.all(resolversValues);
+            keys.forEach((key, i) => data[key] = resolved[i]);
+            return data;
+        });
+    }
+    _createController(ControllerConstructor, resolve = {}) {
+        return tslib_1.__awaiter(this, void 0, void 0, function* () {
+            if (ControllerConstructor) {
+                let resolvedData = yield this._getResolvedData(resolve);
+                let scope = scopeFactory_1.default.create(resolvedData);
+                return new ControllerConstructor(scope, this._data, this._domContext);
+            }
+        });
     }
     _renderViews() {
         if (!this.views) {
             return;
         }
-        Object.keys(this.views).forEach(viewName => {
+        return Promise.all(Object.keys(this.views).map(viewName => this._renderView(viewName)));
+    }
+    _renderView(viewName) {
+        return tslib_1.__awaiter(this, void 0, void 0, function* () {
             let view = this.views[viewName];
             viewName = view.name || viewName;
             let container = this._domContext.querySelector(`[data-view="${viewName}"]`);
             if (container) {
-                let div = document.createElement('div');
-                div.innerHTML = view.template;
-                container.parentElement.replaceChild(div.firstChild, container);
-                div = null;
+                let placeholder = document.createElement('div');
+                placeholder.innerHTML = view.template;
+                container.parentElement.replaceChild(placeholder.firstChild, container);
+                placeholder = null;
                 let ViewController = view.controller;
                 if (ViewController) {
-                    let scope = scopeFactory_1.default.create();
-                    this._viewsControllers.push(new ViewController(scope, this._data, container));
+                    this._viewsControllers.push(yield this._createController(ViewController, view.resolve));
                 }
             }
         });
     }
-    _setParent() {
+    _setParentStateName() {
         let stateParts = this.name.split('.');
         if (stateParts.length > 1) {
-            this.parent = stateParts[0];
+            this.parentStateName = stateParts[0];
         }
+    }
+    _setParentState(state) {
+        this.parentState = state;
     }
 }
 exports.State = State;
 
 
 /***/ }),
-/* 1 */
+/* 2 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
 Object.defineProperty(__webpack_exports__, "__esModule", { value: true });
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__build__ = __webpack_require__(2);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__build__ = __webpack_require__(0);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__build___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_0__build__);
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_containers_states__ = __webpack_require__(9);
 
@@ -218,21 +266,6 @@ window.router = new __WEBPACK_IMPORTED_MODULE_0__build__["Router"](__WEBPACK_IMP
 window.router.start();
 
 /***/ }),
-/* 2 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", { value: true });
-var Router_1 = __webpack_require__(3);
-exports.Router = Router_1.Router;
-var State_1 = __webpack_require__(0);
-exports.State = State_1.State;
-var Controller_1 = __webpack_require__(5);
-exports.Controller = Controller_1.Controller;
-
-
-/***/ }),
 /* 3 */
 /***/ (function(module, exports, __webpack_require__) {
 
@@ -240,8 +273,8 @@ exports.Controller = Controller_1.Controller;
 
 Object.defineProperty(exports, "__esModule", { value: true });
 const tslib_1 = __webpack_require__(21);
-const State_1 = __webpack_require__(0);
-const utils_1 = __webpack_require__(8);
+const State_1 = __webpack_require__(1);
+const utils_1 = __webpack_require__(7);
 class Router {
     constructor(states = {}) {
         this._origPushState = window.history.pushState;
@@ -249,6 +282,7 @@ class Router {
         this._currentParentState = null;
         this._currentState = null;
         this._onPopState = this._onPopState.bind(this);
+        this._onDocumentClick = this._onDocumentClick.bind(this);
         this._setup();
         this._init(states);
     }
@@ -259,14 +293,28 @@ class Router {
             self._onPushState.apply(self, arguments);
         };
         window.addEventListener('popstate', this._onPopState, true);
+        document.addEventListener('click', this._onDocumentClick, true);
     }
     _onPopState(e) {
         this._onPushState(e.state, null, window.location.pathname);
     }
+    _onDocumentClick(e) {
+        if (e.target instanceof HTMLAnchorElement) {
+            let dataset = e.target.dataset, to = dataset.to, params;
+            if (!to) {
+                return true;
+            }
+            if (dataset.params) {
+                params = JSON.parse(dataset.params);
+            }
+            this.go(to, params);
+            e.preventDefault();
+        }
+    }
     _init(states) {
         Object.keys(states).forEach(stateName => {
             let state = states[stateName];
-            // in a case we're using states as object (the names are the key)
+            // in a case we're using states as object (the names are the keys)
             if (!state.name) {
                 state.name = stateName;
             }
@@ -274,8 +322,8 @@ class Router {
         });
     }
     _onPushState(data, title, url) {
-        let state = this._findState(url);
-        if (!state) {
+        let state;
+        if (!(state = this._findState(url))) {
             return;
         }
         state.setData(data);
@@ -293,22 +341,22 @@ class Router {
     _manageState(state) {
         return tslib_1.__awaiter(this, void 0, void 0, function* () {
             if (this._currentState) {
-                if (state.parent !== this._currentState.name) {
-                    yield this._currentState.deactivate();
+                if (state.parentStateName !== this._currentState.name) {
+                    this._currentState.deactivate();
                 }
                 else {
                     this._currentParentState = this._currentState;
                 }
             }
-            if (state.parent && !this._currentParentState) {
-                let parentState = this._findState(state.parent);
+            if (state.parentStateName && !this._currentParentState) {
+                let parentState = this._findState(state.parentStateName);
                 if (parentState) {
-                    parentState.activate();
+                    yield parentState.activate();
                     this._currentParentState = parentState;
                 }
             }
-            else if (this._currentParentState && this._currentParentState.name !== state.parent) {
-                yield this._currentParentState.deactivate();
+            else if (this._currentParentState && this._currentParentState.name !== state.parentStateName) {
+                this._currentParentState.deactivate();
                 this._currentParentState = null;
             }
             this._currentState = state;
@@ -319,8 +367,11 @@ class Router {
         return this._currentState;
     }
     go(urlOrName, data) {
-        let state = this._findState(urlOrName);
-        if (!state) {
+        let state;
+        if (!(state = this._findState(urlOrName))) {
+            return;
+        }
+        if (this._currentState && this._currentState.name == state.name) {
             return;
         }
         let url = state.resolvePathFromData(data);
@@ -328,8 +379,8 @@ class Router {
     }
     start() {
         let url = window.location.pathname;
-        let state = this._findState(url);
-        if (!state) {
+        let state;
+        if (!(state = this._findState(url))) {
             return;
         }
         let data = state.resolveDataFromPath(url);
@@ -731,324 +782,7 @@ function pathToRegexp (path, keys, options) {
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
-class Controller {
-    constructor(scope, stateData, domContext) {
-        this.scope = scope;
-        this.stateData = stateData || {};
-    }
-    destroy() {
-        this.scope = null;
-        this.stateData = null;
-    }
-}
-exports.Controller = Controller;
-
-
-/***/ }),
-/* 6 */
-/***/ (function(module, __webpack_exports__, __webpack_require__) {
-
-"use strict";
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__build__ = __webpack_require__(2);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__build___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_0__build__);
-
-
-class HomeController extends __WEBPACK_IMPORTED_MODULE_0__build__["Controller"] {
-    constructor(scope, stateData, domContext) {
-        super(scope, stateData, domContext);
-
-        this._onProfileClick = this._onProfileClick.bind(this);
-        this._onNameInputChange = this._onNameInputChange.bind(this);
-        this._profileBtn = domContext.querySelector('#profileBtn');
-        this._profileMeBtn = domContext.querySelector('#profileMeBtn');
-        this._profileCustomBtn = domContext.querySelector('#profileCustomBtn');
-        this._container = domContext.querySelector('.home-container');
-        this._name = domContext.querySelector('.name');
-        this._nameInput = domContext.querySelector('#name');
-
-        this._profileBtn.addEventListener('click', this._onProfileClick, true);
-        this._profileMeBtn.addEventListener('click', this._onProfileMeClick, true);
-        this._profileCustomBtn.addEventListener('click', this._onProfileCustomClick, true);
-        this._nameInput.addEventListener('keyup', this._onNameInputChange, true);
-
-        scope.watch("name2", this._updateNameView, this);
-    }
-
-    _updateNameView(value, oldValue) {
-        this._name.textContent = value;
-    }
-
-    _onNameInputChange(e) {
-        this.scope.name2 = e.target.value;
-    }
-
-    _onProfileClick() {
-        router.go('profile');
-    }
-
-    _onProfileMeClick() {
-        router.go('profile.me');
-    }
-
-    _onProfileYouClick() {
-        router.go('profile.you');
-    }
-
-    _onProfileCustomClick() {
-        router.go('profile.user', { userId: 123456 });
-    }
-
-    destroy() {
-        this._profileBtn.removeEventListener('click', this._onProfileClick, true);
-        this._profileMeBtn.removeEventListener('click', this._onProfileMeClick, true);
-        this._profileCustomBtn.removeEventListener('click', this._onProfileCustomClick, true);
-
-        this._profileBtn = null;
-        this._profileMeBtn = null;
-        this._profileCustomBtn = null;
-        this._container = null;
-    }
-}
-/* harmony export (immutable) */ __webpack_exports__["a"] = HomeController;
-
-
-/***/ }),
-/* 7 */
-/***/ (function(module, exports) {
-
-module.exports = "<div class=\"home-container container\"> <div class=row> <div class=col-md-12> <div>Hello World!</div> <div><button id=profileBtn>Profile</button></div> <div><button id=profileMeBtn>Profile Me</button></div> <div><button id=profileCustomBtn>Profile Custom</button></div> <div><input type=text id=name /></div> <div class=name></div> </div> </div> </div>";
-
-/***/ }),
-/* 8 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", { value: true });
-const hasOwn = Object.prototype.hasOwnProperty;
-exports.cloneDeep = (obj = {}) => JSON.parse(JSON.stringify(obj));
-exports.shallowEqual = (a, b) => {
-    if (a === b) {
-        return true;
-    }
-    let countA = 0;
-    let countB = 0;
-    for (const key in a) {
-        if (hasOwn.call(a, key) && a[key] !== b[key]) {
-            return false;
-        }
-        countA++;
-    }
-    for (const key in b) {
-        if (hasOwn.call(b, key)) {
-            countB++;
-        }
-    }
-    return countA === countB;
-};
-exports.trimEndSlash = (str) => {
-    if (str.lastIndexOf('/') == str.length - 1) {
-        return str.substr(0, str.length - 1);
-    }
-    return str;
-};
-
-
-/***/ }),
-/* 9 */
-/***/ (function(module, __webpack_exports__, __webpack_require__) {
-
-"use strict";
-Object.defineProperty(__webpack_exports__, "__esModule", { value: true });
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__home_homeState__ = __webpack_require__(10);
-/* harmony reexport (binding) */ __webpack_require__.d(__webpack_exports__, "homeState", function() { return __WEBPACK_IMPORTED_MODULE_0__home_homeState__["a"]; });
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1__profile_profileState__ = __webpack_require__(11);
-/* harmony reexport (binding) */ __webpack_require__.d(__webpack_exports__, "profileState", function() { return __WEBPACK_IMPORTED_MODULE_1__profile_profileState__["a"]; });
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_2__profile_me_meState__ = __webpack_require__(15);
-/* harmony reexport (binding) */ __webpack_require__.d(__webpack_exports__, "profileMeState", function() { return __WEBPACK_IMPORTED_MODULE_2__profile_me_meState__["a"]; });
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_3__profile_user_userState__ = __webpack_require__(17);
-/* harmony reexport (binding) */ __webpack_require__.d(__webpack_exports__, "profileUserState", function() { return __WEBPACK_IMPORTED_MODULE_3__profile_user_userState__["a"]; });
-
-
-
-
-
-
-/***/ }),
-/* 10 */
-/***/ (function(module, __webpack_exports__, __webpack_require__) {
-
-"use strict";
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__HomeController__ = __webpack_require__(6);
-
-
-/* harmony default export */ __webpack_exports__["a"] = ({
-    name: 'home',
-    url: '/',
-    controller: __WEBPACK_IMPORTED_MODULE_0__HomeController__["a" /* default */],
-    template: __webpack_require__(7)
-});
-
-/***/ }),
-/* 11 */
-/***/ (function(module, __webpack_exports__, __webpack_require__) {
-
-"use strict";
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__ProfileController__ = __webpack_require__(12);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1__UserInfoController__ = __webpack_require__(13);
-
-
-
-/* harmony default export */ __webpack_exports__["a"] = ({
-    name: 'profile',
-    url: '/profile',
-    controller: __WEBPACK_IMPORTED_MODULE_0__ProfileController__["a" /* default */],
-    template: __webpack_require__(14),
-    views: {
-        user_info: {
-            controller: __WEBPACK_IMPORTED_MODULE_1__UserInfoController__["a" /* default */],
-            template: `<div>Im a user info component :)</div>`
-        }
-    }
-});
-
-/***/ }),
-/* 12 */
-/***/ (function(module, __webpack_exports__, __webpack_require__) {
-
-"use strict";
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__build__ = __webpack_require__(2);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__build___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_0__build__);
-
-
-class ProfileController extends __WEBPACK_IMPORTED_MODULE_0__build__["Controller"] {
-    constructor() {
-        super();
-
-        this._onHomeClick = this._onHomeClick.bind(this);
-        this._container = document.querySelector('.profile-container');
-        this._homeBtn = document.querySelector('#homeBtn');
-
-        this._container.classList.add('profile-page');
-
-        this._homeBtn.addEventListener('click', this._onHomeClick, true);
-    }
-
-    _onHomeClick() {
-        router.go('home');
-    }
-
-    destroy() {
-        this._container = null;
-
-        this._homeBtn.removeEventListener('click', this._onHomeClick, true);
-        this._homeBtn = null;
-    }
-}
-/* harmony export (immutable) */ __webpack_exports__["a"] = ProfileController;
-
-
-/***/ }),
-/* 13 */
-/***/ (function(module, __webpack_exports__, __webpack_require__) {
-
-"use strict";
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__build__ = __webpack_require__(2);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__build___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_0__build__);
-
-
-class UserInfoController extends __WEBPACK_IMPORTED_MODULE_0__build__["Controller"] {
-
-}
-/* harmony export (immutable) */ __webpack_exports__["a"] = UserInfoController;
-
-
-/***/ }),
-/* 14 */
-/***/ (function(module, exports) {
-
-module.exports = "<div class=\"profile-container container\"> <div class=row> <div class=col-md-8> <div>Profile Page!</div> <div><button id=homeBtn>Home</button></div> <div data-view></div> </div> <div class=col-md-4> <div data-view=user_info></div> </div> </div> </div>";
-
-/***/ }),
-/* 15 */
-/***/ (function(module, __webpack_exports__, __webpack_require__) {
-
-"use strict";
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__ProfileMeController__ = __webpack_require__(16);
-
-
-/* harmony default export */ __webpack_exports__["a"] = ({
-    name: 'profile.me',
-    url: '/profile/me',
-    controller: __WEBPACK_IMPORTED_MODULE_0__ProfileMeController__["a" /* default */],
-    template: `<div>I'm the Me view :)</div>`
-});
-
-/***/ }),
-/* 16 */
-/***/ (function(module, __webpack_exports__, __webpack_require__) {
-
-"use strict";
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__build__ = __webpack_require__(2);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__build___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_0__build__);
-
-
-class ProfileMeController extends __WEBPACK_IMPORTED_MODULE_0__build__["Controller"] {
-    constructor(stateData, rootDom) {
-        super(stateData, rootDom);
-    }
-}
-/* harmony export (immutable) */ __webpack_exports__["a"] = ProfileMeController;
-
-
-/***/ }),
-/* 17 */
-/***/ (function(module, __webpack_exports__, __webpack_require__) {
-
-"use strict";
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__ProfileUserController__ = __webpack_require__(18);
-
-
-/* harmony default export */ __webpack_exports__["a"] = ({
-    name: 'profile.user',
-    url: '/profile/:userId',
-    controller: __WEBPACK_IMPORTED_MODULE_0__ProfileUserController__["a" /* default */],
-    template: `<div>I'm the Custom view :)</div>`,
-    onEnter: (state) => {
-
-        console.log(state.getData())
-
-        return new Promise((resolve) => setTimeout(resolve, 3000));
-    }
-});
-
-/***/ }),
-/* 18 */
-/***/ (function(module, __webpack_exports__, __webpack_require__) {
-
-"use strict";
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__build__ = __webpack_require__(2);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__build___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_0__build__);
-
-
-class ProfileUserController extends __WEBPACK_IMPORTED_MODULE_0__build__["Controller"] {
-    constructor(stateData, rootDom) {
-        super(stateData, rootDom);
-
-        console.log(this.stateData)
-    }
-}
-/* harmony export (immutable) */ __webpack_exports__["a"] = ProfileUserController;
-
-
-/***/ }),
-/* 19 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", { value: true });
-const EventDispatcher_1 = __webpack_require__(20);
+const EventDispatcher_1 = __webpack_require__(6);
 class Scope extends EventDispatcher_1.default {
     watch(prop, handler, scope) {
         this.on(prop, handler, scope);
@@ -1058,8 +792,9 @@ class Scope extends EventDispatcher_1.default {
     }
 }
 exports.Scope = Scope;
-function createScope() {
+function createScope(data) {
     let scope = new Scope();
+    Object.assign(scope, data);
     return new Proxy(scope, {
         get: function (target, key) {
             return target[key];
@@ -1077,12 +812,12 @@ function createScope() {
     });
 }
 exports.default = {
-    create: () => createScope()
+    create: (data) => createScope(data)
 };
 
 
 /***/ }),
-/* 20 */
+/* 6 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -1139,6 +874,343 @@ class EventDispatcher {
     }
 }
 exports.default = EventDispatcher;
+
+
+/***/ }),
+/* 7 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+const hasOwn = Object.prototype.hasOwnProperty;
+exports.cloneDeep = (obj = {}) => JSON.parse(JSON.stringify(obj));
+exports.shallowEqual = (a, b) => {
+    if (a === b) {
+        return true;
+    }
+    let countA = 0;
+    let countB = 0;
+    for (const key in a) {
+        if (hasOwn.call(a, key) && a[key] !== b[key]) {
+            return false;
+        }
+        countA++;
+    }
+    for (const key in b) {
+        if (hasOwn.call(b, key)) {
+            countB++;
+        }
+    }
+    return countA === countB;
+};
+exports.trimEndSlash = (str) => {
+    if (!str) {
+        return str;
+    }
+    let len = str.length;
+    if (str[len - 1] === "/") {
+        return str.substr(0, len - 1);
+    }
+    return str;
+};
+exports.values = (obj) => {
+    if (!obj) {
+        return [];
+    }
+    return Object.keys(obj).map(key => obj[key]);
+};
+
+
+/***/ }),
+/* 8 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+class Controller {
+    constructor(scope, stateData, domContext) {
+        this.scope = scope;
+        this.stateData = stateData || {};
+        this.domContext = domContext;
+    }
+    componentWillMount() {
+    }
+    componentDidMount() {
+    }
+    destroy() {
+        this.scope = null;
+        this.stateData = null;
+    }
+}
+exports.Controller = Controller;
+
+
+/***/ }),
+/* 9 */
+/***/ (function(module, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+Object.defineProperty(__webpack_exports__, "__esModule", { value: true });
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__home_homeState__ = __webpack_require__(10);
+/* harmony reexport (binding) */ __webpack_require__.d(__webpack_exports__, "homeState", function() { return __WEBPACK_IMPORTED_MODULE_0__home_homeState__["a"]; });
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1__profile_profileState__ = __webpack_require__(13);
+/* harmony reexport (binding) */ __webpack_require__.d(__webpack_exports__, "profileState", function() { return __WEBPACK_IMPORTED_MODULE_1__profile_profileState__["a"]; });
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_2__profile_me_meState__ = __webpack_require__(17);
+/* harmony reexport (binding) */ __webpack_require__.d(__webpack_exports__, "profileMeState", function() { return __WEBPACK_IMPORTED_MODULE_2__profile_me_meState__["a"]; });
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_3__profile_user_userState__ = __webpack_require__(19);
+/* harmony reexport (binding) */ __webpack_require__.d(__webpack_exports__, "profileUserState", function() { return __WEBPACK_IMPORTED_MODULE_3__profile_user_userState__["a"]; });
+
+
+
+
+
+
+/***/ }),
+/* 10 */
+/***/ (function(module, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__HomeController__ = __webpack_require__(11);
+
+
+/* harmony default export */ __webpack_exports__["a"] = ({
+    name: 'home',
+    url: '/',
+    controller: __WEBPACK_IMPORTED_MODULE_0__HomeController__["a" /* default */],
+    template: __webpack_require__(12)
+});
+
+/***/ }),
+/* 11 */
+/***/ (function(module, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__build__ = __webpack_require__(0);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__build___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_0__build__);
+
+
+class HomeController extends __WEBPACK_IMPORTED_MODULE_0__build__["Controller"] {
+    constructor(scope, stateData, domContext) {
+        super(scope, stateData, domContext);
+
+        this._onProfileClick = this._onProfileClick.bind(this);
+        this._onNameInputChange = this._onNameInputChange.bind(this);
+        this._profileBtn = domContext.querySelector('#profileBtn');
+        this._profileMeBtn = domContext.querySelector('#profileMeBtn');
+        this._profileCustomBtn = domContext.querySelector('#profileCustomBtn');
+        this._container = domContext.querySelector('.home-container');
+        this._name = domContext.querySelector('.name');
+        this._nameInput = domContext.querySelector('#name');
+
+        this._profileBtn.addEventListener('click', this._onProfileClick, true);
+        this._profileMeBtn.addEventListener('click', this._onProfileMeClick, true);
+        this._profileCustomBtn.addEventListener('click', this._onProfileCustomClick, true);
+        this._nameInput.addEventListener('keyup', this._onNameInputChange, true);
+
+        scope.watch("name", this._updateNameView, this);
+    }
+
+    _updateNameView(value, oldValue) {
+        this._name.textContent = value;
+    }
+
+    _onNameInputChange(e) {
+        this.scope.name = e.target.value;
+    }
+
+    _onProfileClick() {
+        router.go('profile');
+    }
+
+    _onProfileMeClick() {
+        router.go('profile.me');
+    }
+
+    _onProfileYouClick() {
+        router.go('profile.you');
+    }
+
+    _onProfileCustomClick() {
+        router.go('profile.user', { userId: 123456 });
+    }
+
+    destroy() {
+        this._profileBtn.removeEventListener('click', this._onProfileClick, true);
+        this._profileMeBtn.removeEventListener('click', this._onProfileMeClick, true);
+        this._profileCustomBtn.removeEventListener('click', this._onProfileCustomClick, true);
+
+        this._profileBtn = null;
+        this._profileMeBtn = null;
+        this._profileCustomBtn = null;
+        this._container = null;
+    }
+}
+/* harmony export (immutable) */ __webpack_exports__["a"] = HomeController;
+
+
+/***/ }),
+/* 12 */
+/***/ (function(module, exports) {
+
+module.exports = "<div class=\"home-container container\"> <div class=row> <div class=col-md-12> <div>Hello World!</div> <div><button id=profileBtn>Profile</button></div> <div><button id=profileMeBtn>Profile Me</button></div> <div><button id=profileCustomBtn>Profile Custom</button></div> <div><input type=text id=name /></div> <div class=name></div> </div> </div> </div>";
+
+/***/ }),
+/* 13 */
+/***/ (function(module, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__ProfileController__ = __webpack_require__(14);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1__UserInfoController__ = __webpack_require__(15);
+
+
+
+/* harmony default export */ __webpack_exports__["a"] = ({
+    name: 'profile',
+    url: '/profile',
+    controller: __WEBPACK_IMPORTED_MODULE_0__ProfileController__["a" /* default */],
+    // template: function (state, domContext) {
+    //     domContext.innerHTML = require('./profile.html');
+    // },
+    template: __webpack_require__(16),
+    views: {
+        user_info: {
+            controller: __WEBPACK_IMPORTED_MODULE_1__UserInfoController__["a" /* default */],
+            template: `<div>Im a user info component :)</div>`
+        }
+    }
+});
+
+/***/ }),
+/* 14 */
+/***/ (function(module, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__build__ = __webpack_require__(0);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__build___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_0__build__);
+
+
+class ProfileController extends __WEBPACK_IMPORTED_MODULE_0__build__["Controller"] {
+    constructor() {
+        super();
+
+        this._onHomeClick = this._onHomeClick.bind(this);
+        this._container = document.querySelector('.profile-container');
+        this._homeBtn = document.querySelector('#homeBtn');
+
+        this._container.classList.add('profile-page');
+
+        this._homeBtn.addEventListener('click', this._onHomeClick, true);
+    }
+
+    _onHomeClick() {
+        router.go('home');
+    }
+
+    destroy() {
+        this._container = null;
+
+        this._homeBtn.removeEventListener('click', this._onHomeClick, true);
+        this._homeBtn = null;
+    }
+}
+/* harmony export (immutable) */ __webpack_exports__["a"] = ProfileController;
+
+
+/***/ }),
+/* 15 */
+/***/ (function(module, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__build__ = __webpack_require__(0);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__build___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_0__build__);
+
+
+class UserInfoController extends __WEBPACK_IMPORTED_MODULE_0__build__["Controller"] {
+    constructor(scope, stateData, domContext) {
+        super(scope, stateData, domContext);
+
+        console.log(scope);
+    }
+}
+/* harmony export (immutable) */ __webpack_exports__["a"] = UserInfoController;
+
+
+/***/ }),
+/* 16 */
+/***/ (function(module, exports) {
+
+module.exports = "<div class=\"profile-container container\"> <div class=row> <div class=col-md-8> <div>Profile Page!</div> <div><button id=homeBtn>Home</button></div> <div data-view></div> </div> <div class=col-md-4> <div data-view=user_info></div> </div> </div> </div>";
+
+/***/ }),
+/* 17 */
+/***/ (function(module, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__ProfileMeController__ = __webpack_require__(18);
+
+
+/* harmony default export */ __webpack_exports__["a"] = ({
+    name: 'profile.me',
+    url: '/profile/me',
+    controller: __WEBPACK_IMPORTED_MODULE_0__ProfileMeController__["a" /* default */],
+    template: `<div>I'm the Me view :)</div>`
+});
+
+/***/ }),
+/* 18 */
+/***/ (function(module, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__build__ = __webpack_require__(0);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__build___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_0__build__);
+
+
+class ProfileMeController extends __WEBPACK_IMPORTED_MODULE_0__build__["Controller"] {
+    constructor(stateData, rootDom) {
+        super(stateData, rootDom);
+    }
+}
+/* harmony export (immutable) */ __webpack_exports__["a"] = ProfileMeController;
+
+
+/***/ }),
+/* 19 */
+/***/ (function(module, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__ProfileUserController__ = __webpack_require__(20);
+
+
+/* harmony default export */ __webpack_exports__["a"] = ({
+    name: 'profile.user',
+    url: '/profile/@:userId',
+    controller: __WEBPACK_IMPORTED_MODULE_0__ProfileUserController__["a" /* default */],
+    template: `<div>I'm the Custom view :)</div>`,
+    resolve: {
+        user: (state) => {
+            return new Promise(resolve => resolve({ id: state.getData().userId, name: 'Udi Talias' }));
+        },
+        userId: '123'
+    }
+});
+
+/***/ }),
+/* 20 */
+/***/ (function(module, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__build__ = __webpack_require__(0);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__build___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_0__build__);
+
+
+class ProfileUserController extends __WEBPACK_IMPORTED_MODULE_0__build__["Controller"] {
+    componentDidMount() {
+        console.log(this.scope);
+    }
+}
+/* harmony export (immutable) */ __webpack_exports__["a"] = ProfileUserController;
 
 
 /***/ }),

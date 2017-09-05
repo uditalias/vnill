@@ -18,7 +18,7 @@ export default class HomeController extends Controller {
         this._profileCustomBtn.addEventListener('click', this._onProfileCustomClick, true);
         this._nameInput.addEventListener('keyup', this._onNameInputChange, true);
 
-        scope.watch("name2", this._updateNameView, this);
+        scope.watch("name", this._updateNameView, this);
     }
 
     _updateNameView(value, oldValue) {
@@ -26,7 +26,7 @@ export default class HomeController extends Controller {
     }
 
     _onNameInputChange(e) {
-        this.scope.name2 = e.target.value;
+        this.scope.name = e.target.value;
     }
 
     _onProfileClick() {

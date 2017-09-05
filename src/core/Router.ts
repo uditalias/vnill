@@ -1,4 +1,4 @@
-import { State } from './State'
+import { State, IStateSettings } from './State'
 import { trimEndSlash } from '../common/utils'
 
 export class Router {
@@ -7,12 +7,13 @@ export class Router {
     private _currentParentState: State;
     private _currentState: State;
 
-    constructor(states = {}) {
+    constructor(states: { [name: string]: IStateSettings } | IStateSettings[] = {}) {
         this._origPushState = window.history.pushState;
         this._states = [];
         this._currentParentState = null;
         this._currentState = null;
         this._onPopState = this._onPopState.bind(this);
+        this._onDocumentClick = this._onDocumentClick.bind(this);
 
         this._setup();
 
@@ -28,18 +29,39 @@ export class Router {
         }
 
         window.addEventListener('popstate', this._onPopState, true);
+        document.addEventListener('click', this._onDocumentClick, true);
     }
 
     private _onPopState(e: PopStateEvent) {
         this._onPushState(e.state, null, window.location.pathname);
     }
 
-    private _init(states: any) {
+    private _onDocumentClick(e: MouseEvent) {
+        if (e.target instanceof HTMLAnchorElement) {
+            let dataset = e.target.dataset,
+                to = dataset.to,
+                params;
+
+            if (!to) {
+                return true;
+            }
+
+            if (dataset.params) {
+                params = JSON.parse(dataset.params);
+            }
+
+            this.go(to, params);
+
+            e.preventDefault();
+        }
+    }
+
+    private _init(states: { [name: string]: IStateSettings } | IStateSettings[]) {
         Object.keys(states).forEach(stateName => {
 
-            let state = states[stateName];
+            let state = <IStateSettings>states[stateName];
 
-            // in a case we're using states as object (the names are the key)
+            // in a case we're using states as object (the names are the keys)
             if (!state.name) {
                 state.name = stateName;
             }
@@ -49,9 +71,8 @@ export class Router {
     }
 
     private _onPushState(data: any, title: string, url: string) {
-        let state = this._findState(url);
-
-        if (!state) {
+        let state;
+        if (!(state = this._findState(url))) {
             return;
         }
 
@@ -62,7 +83,7 @@ export class Router {
 
     private _findState(urlOrName: string): State {
 
-        urlOrName = trimEndSlash(urlOrName)
+        urlOrName = trimEndSlash(urlOrName);
 
         // first, we want to find if there is an exact, non-parameters state url or state with the same name
         let exactState = this._states.find(x => trimEndSlash(x.url) === urlOrName || x.name === urlOrName);
@@ -77,23 +98,23 @@ export class Router {
     private async _manageState(state: State) {
 
         if (this._currentState) {
-            if (state.parent !== this._currentState.name) {
-                await this._currentState.deactivate();
+            if (state.parentStateName !== this._currentState.name) {
+                this._currentState.deactivate();
             } else {
                 this._currentParentState = this._currentState;
             }
         }
 
-        if (state.parent && !this._currentParentState) {
-            let parentState = this._findState(state.parent);
+        if (state.parentStateName && !this._currentParentState) {
+            let parentState = this._findState(state.parentStateName);
 
             if (parentState) {
-                parentState.activate();
+                await parentState.activate();
 
                 this._currentParentState = parentState;
             }
-        } else if (this._currentParentState && this._currentParentState.name !== state.parent) {
-            await this._currentParentState.deactivate();
+        } else if (this._currentParentState && this._currentParentState.name !== state.parentStateName) {
+            this._currentParentState.deactivate();
             this._currentParentState = null;
         }
 
@@ -107,9 +128,12 @@ export class Router {
     }
 
     public go(urlOrName: string, data: any) {
-        let state = this._findState(urlOrName);
+        let state;
+        if (!(state = this._findState(urlOrName))) {
+            return;
+        }
 
-        if (!state) {
+        if (this._currentState && this._currentState.name == state.name) {
             return;
         }
 
@@ -121,9 +145,8 @@ export class Router {
     public start() {
         let url = window.location.pathname;
 
-        let state = this._findState(url);
-
-        if (!state) {
+        let state;
+        if (!(state = this._findState(url))) {
             return;
         }
 
@@ -134,7 +157,7 @@ export class Router {
         this._manageState(state);
     }
 
-    public addState(state: any | any[]) {
+    public addState(state: IStateSettings | IStateSettings[]) {
         if (state instanceof Array) {
             state.forEach(x => this.addState(x));
         } else {
